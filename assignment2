@@ -1,0 +1,105 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <string.h>
+
+/*
+ * CS3305A - Assignment 2
+ * October 8th, 2021
+ * Rishabh Jain
+ */
+
+int main(int argc, char *argv[3]) {
+    // Creating array based on the 3 arguments
+    char array[strlen(argv[1]) + strlen(argv[2]) + strlen(argv[3]) + 3];
+    // Creating array based on array size and final print statement size
+    char output[sizeof(array) + 80];
+    // Pipe
+    int port[2];
+    // Pid variable
+    pid_t pid;
+
+    // Pipe error
+    if (pipe(port) < 0) {
+        perror("pipe error");
+        exit(0);
+    }
+
+    // Parent process creates a child process
+    pid = fork();
+
+    // Check if the fork was unsuccessful
+    if (pid < 0) {
+        perror("fork unsuccessful");
+        exit(0);
+    }
+
+    // Parent process
+    if (pid > 0) {
+        // Integer to store parent pid
+        int parent_pid = getpid();
+
+        // Print child creation line
+        sprintf(output, "parent (PID %d) created a child (PID %d)", parent_pid, pid);
+        puts(output);
+
+        // Parent receives X from command line argument
+        sprintf(output, "parent (PID %d) receives X = \"%s\" from the user", parent_pid, argv[1]);
+        puts(output);
+
+        // Parent writes X to the pipe
+        write(port[1], argv[1], strlen(argv[1]) + 1);
+        sprintf(output, "parent (PID %d) writes X = \"%s\" to the pipe", parent_pid, argv[1]);
+        puts(output);
+
+        // Parent waits for child to complete
+        wait(NULL);
+
+        // Parent reads Z'
+        read(port[0], array, sizeof(array));
+        sprintf(output, "parent (PID %d) reads concatenated result from the pipe (Z' = \"%s\")", getpid(), array);
+        puts(output);
+
+        // Close read port
+        close(port[0]);
+        // Close write port
+        close(port[1]);
+    }
+
+    // Child process
+    if (pid == 0) {
+        char Y_prime[strlen(argv[2]) + strlen(argv[3]) + 2];
+        char Z_prime[(strlen(array) + strlen(argv[2]) + strlen(argv[3]) + 3)];
+        // Child reads X from the pipe
+        read(port[0], array, sizeof(array));
+
+        // child receives Y from command line argument
+        sprintf(output, "child (PID %d) receives Y = \"%s\" and Z = \"%s\" from the user", getpid(), argv[2], argv[3]);
+        puts(output);
+
+        // Child concatenates Y and Z to make Y'
+        sprintf(Y_prime, "%s %s", argv[2], argv[3]);
+        sprintf(output, "child (PID %d) concatenates Y and Z to generate Y' = \"%s\"", getpid(), Y_prime);
+        puts(output);
+
+        // Child prints X value read from the pipe
+        sprintf(output, "child (PID %d) reads X from pipe = \"%s\"", getpid(), array);
+        puts(output);
+
+        // Child concatenates X and Y' to make Z'
+        sprintf(Z_prime, "%s %s", array, Y_prime);
+        sprintf(output, "child (PID %d) concatenates X and Y' to generate Z' = \"%s\"", getpid(), Z_prime);
+        puts(output);
+
+        // Child writes Z' into the pipe
+        write(port[1], Z_prime, strlen(Z_prime) + 1);
+        sprintf(output, "child (PID %d) writes Z' into the pipe", getpid());
+        puts(output);
+
+        // Close read port
+        close(port[0]);
+        // Close write port
+        close(port[1]);
+    }
+}
